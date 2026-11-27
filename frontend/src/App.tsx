@@ -128,7 +128,7 @@ function App() {
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight">goomin</h1>
         <p className="text-muted-foreground text-sm">
-          Google Health exercises, uploaded to Garmin Connect every 12 hours.
+          Google Health daily steps, imported into Garmin Connect every day.
         </p>
       </header>
 
@@ -145,7 +145,7 @@ function App() {
             <CardTitle className="flex items-center justify-between gap-2">
               Google Health {connected(status.google, "connected")}
             </CardTitle>
-            <CardDescription>Source of the workouts.</CardDescription>
+            <CardDescription>Source of the daily steps.</CardDescription>
           </CardHeader>
           <CardContent>
             {status.google ? (
@@ -168,7 +168,9 @@ function App() {
             <CardTitle className="flex items-center justify-between gap-2">
               Garmin Connect {connected(status.garmin, "connected")}
             </CardTitle>
-            <CardDescription>{status.garminAs || "Destination of the workouts."}</CardDescription>
+            <CardDescription>
+              {status.garminAs || "Destination of the daily steps."}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {status.garmin ? (
