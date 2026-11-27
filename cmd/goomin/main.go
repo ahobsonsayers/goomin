@@ -13,11 +13,11 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/ahobsonsayers/goomin/frontend"
-	"github.com/ahobsonsayers/goomin/garmin"
-	"github.com/ahobsonsayers/goomin/google"
-	"github.com/ahobsonsayers/goomin/server"
-	"github.com/ahobsonsayers/goomin/state"
-	"github.com/ahobsonsayers/goomin/syncer"
+	"github.com/ahobsonsayers/goomin/internal/garmin"
+	"github.com/ahobsonsayers/goomin/internal/google"
+	"github.com/ahobsonsayers/goomin/internal/server"
+	"github.com/ahobsonsayers/goomin/internal/state"
+	"github.com/ahobsonsayers/goomin/internal/syncer"
 )
 
 var command = &cli.Command{ //nolint:gochecknoglobals // urfave/cli wants one root command.

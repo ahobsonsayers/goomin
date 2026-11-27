@@ -7,9 +7,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ahobsonsayers/goomin/garmin"
-	"github.com/ahobsonsayers/goomin/google"
-	"github.com/ahobsonsayers/goomin/state"
+	"github.com/ahobsonsayers/goomin/internal/garmin"
+	"github.com/ahobsonsayers/goomin/internal/google"
+	"github.com/ahobsonsayers/goomin/internal/state"
 )
 
 // DefaultWindow is wider than the 12 h interval: a weekly Google re-consent must not drop a workout.

@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ahobsonsayers/goomin/garmin"
-	"github.com/ahobsonsayers/goomin/google"
-	"github.com/ahobsonsayers/goomin/state"
+	"github.com/ahobsonsayers/goomin/internal/garmin"
+	"github.com/ahobsonsayers/goomin/internal/google"
+	"github.com/ahobsonsayers/goomin/internal/state"
 )
 
 const (

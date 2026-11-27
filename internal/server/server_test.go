@@ -13,8 +13,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ahobsonsayers/goomin/google"
-	"github.com/ahobsonsayers/goomin/state"
+	"github.com/ahobsonsayers/goomin/internal/google"
+	"github.com/ahobsonsayers/goomin/internal/state"
 )
 
 func TestStatusReportsTheStore(t *testing.T) {

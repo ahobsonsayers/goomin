@@ -4,13 +4,13 @@ Server that copies Google Health exercises into Garmin Connect, served with a sm
 
 ## Layout
 
-- `cmd/goomin` — cli (`serve` by default, `sync` for one run) and token wiring
-- `server/` — the chi + oapi-codegen strict API: `server/server.gen.go` is generated from `schema/openapi.yaml` by `task generate`; never edit it by hand. Call `GetSpec()`, not the deprecated `GetSwagger()`
-- `server/serve.go` — router, request-validation middleware and the React build; the page has no auth, run it behind a proxy and bind to loopback
-- `google/` — Google Health API: auth URL, token exchange/refresh, exercise list and TCX export
-- `garmin/` — Garmin Connect: SSO form login (with MFA), ticket exchange, TCX upload
-- `syncer/` — the run itself: ledger, per-exercise isolation, 401 retry
-- `state/` — one JSON file: tokens, upload ledger, log (`0600`, dir `0700`)
+- `cmd/goomin` — cli (`serve` by default, `sync` for one run) and token wiring; binaries live in `cmd/`, and every other package is under `internal/` (nothing here is importable by other repos, so there is no `pkg/`)
+- `internal/server/` — the chi + oapi-codegen strict API: `server.gen.go` is generated from `schema/openapi.yaml` by `task generate`; never edit it by hand. Call `GetSpec()`, not the deprecated `GetSwagger()`
+- `internal/server/serve.go` — router, request-validation middleware and the React build; the page has no auth, run it behind a proxy and bind to loopback
+- `internal/google/` — Google Health API: auth URL, token exchange/refresh, exercise list and TCX export
+- `internal/garmin/` — Garmin Connect: SSO form login (with MFA), ticket exchange, TCX upload
+- `internal/syncer/` — the run itself: ledger, per-exercise isolation, 401 retry
+- `internal/state/` — one JSON file: tokens, upload ledger, log (`0600`, dir `0700`)
 - `frontend/` — Vite+ (React, Tailwind, shadcn), built to `dist/` and embedded with `go:embed`; bun, not npm. `dist/.gitkeep` stays committed because `go:embed all:dist` needs the directory
 
 ## Rules

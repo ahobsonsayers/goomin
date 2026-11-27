@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ahobsonsayers/goomin/state"
+	"github.com/ahobsonsayers/goomin/internal/state"
 )
 
 const (
