@@ -1,0 +1,11 @@
+services:
+  health-connectd:
+    container_name: health-connectd
+    image: arranhs/health-connectd:latest
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./data:/home/nonroot
+    env_file: .env
