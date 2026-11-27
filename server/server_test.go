@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"testing/fstest"
@@ -72,6 +73,50 @@ func TestPageServesTheBuild(t *testing.T) {
 	require.Equal(t, []byte("<div id=\"root\">"), recorder.Body.Bytes())
 }
 
+func TestGarminSignInNeedsASession(t *testing.T) {
+	t.Parallel()
+
+	router := testRouter(t, nil, nil)
+
+	recorder := postJSON(router, "/api/auth/garmin", `{"username":"a@example.com","password":"hunter2"}`)
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+	require.Contains(t, recorder.Body.String(), "the Garmin login session expired")
+
+	recorder = postJSON(router, "/api/auth/garmin/mfa", `{"code":"123456"}`)
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+	require.Contains(t, recorder.Body.String(), "the Garmin login session expired")
+}
+
+func TestGoogleCallbackRejectsAStrangerState(t *testing.T) {
+	t.Parallel()
+
+	store, err := state.Open(filepath.Join(t.TempDir(), "state.json"))
+	require.NoError(t, err)
+
+	apiServer := NewServer(store, &google.Client{ClientID: "id", ClientSecret: "s"}, func() {})
+	handler, err := newRouter(apiServer, frontendFS())
+	require.NoError(t, err)
+
+	start := get(handler, "/api/auth/google")
+	require.Equal(t, http.StatusFound, start.Code)
+
+	var stateCookie *http.Cookie
+	for _, cookie := range start.Result().Cookies() {
+		if cookie.Name == "oauth_state" {
+			stateCookie = cookie
+		}
+	}
+	require.NotNil(t, stateCookie)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/auth/google/callback?code=c&state=tampered", http.NoBody)
+	request.AddCookie(stateCookie)
+	handler.ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusSeeOther, recorder.Code)
+	require.Contains(t, recorder.Header().Get("Location"), "different+browser+session")
+	require.False(t, store.View().Google.Connected())
+}
+
 func testRouter(t *testing.T, trigger func(), assets fs.FS) http.Handler {
 	t.Helper()
 
@@ -108,6 +153,15 @@ func get(router http.Handler, target string) *httptest.ResponseRecorder {
 func post(router http.Handler, target string) *httptest.ResponseRecorder {
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, target, http.NoBody))
+
+	return recorder
+}
+
+func postJSON(router http.Handler, target, body string) *httptest.ResponseRecorder {
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, target, strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, request)
 
 	return recorder
 }
