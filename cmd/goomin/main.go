@@ -26,7 +26,7 @@ var command = &cli.Command{ //nolint:gochecknoglobals // urfave/cli wants one ro
 	Flags: []cli.Flag{
 		&cli.IntFlag{Name: "port", Value: 8080, Usage: "port for the web page"},
 		&cli.StringFlag{Name: "state", Value: "state.json", Usage: "file holding tokens and the ledger"},
-		&cli.DurationFlag{Name: "interval", Value: 12 * time.Hour, Usage: "how often to sync"},
+		&cli.DurationFlag{Name: "interval", Value: 24 * time.Hour, Usage: "how often to sync"},
 	},
 	Action: serve,
 	Commands: []*cli.Command{
@@ -130,7 +130,7 @@ func configFrom(cmd *cli.Command) config {
 	cfg := config{
 		Port:      cmd.Int("port"),
 		StatePath: cmd.String("state"),
-		PublicURL: os.Getenv("PUBLIC_URL"),
+		PublicURL: os.Getenv("APP_URL"),
 		Interval:  cmd.Duration("interval"),
 	}
 
@@ -154,18 +154,18 @@ func newApp(cfg config) (*app, error) {
 	}
 
 	syncRun := &syncer.Sync{
-		Store:    store,
-		Health:   client,
-		Uploader: garminUploader{},
-		Google:   googleTokens(store, client),
-		Garmin:   garminTokens(store),
+		Store:       store,
+		Steps:       client,
+		StepsImport: stepsImporter{},
+		Google:      googleTokens(store, client),
+		Garmin:      garminTokens(store),
 	}
 
 	return &app{config: cfg, store: store, google: client, sync: syncRun}, nil
 }
 
-type garminUploader struct{}
+type stepsImporter struct{}
 
-func (garminUploader) Upload(ctx context.Context, accessToken string, tcx []byte, exerciseID string) (string, error) {
-	return garmin.Upload(ctx, accessToken, tcx, exerciseID)
+func (stepsImporter) ImportSteps(ctx context.Context, accessToken, date string, steps int) (string, error) {
+	return garmin.UploadSteps(ctx, accessToken, date, steps)
 }
