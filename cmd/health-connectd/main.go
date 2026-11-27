@@ -4,10 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -28,9 +26,7 @@ var command = &cli.Command{ //nolint:gochecknoglobals // urfave/cli wants one ro
 	Usage: "sync Google Health exercises into Garmin Connect",
 	Flags: []cli.Flag{
 		&cli.IntFlag{Name: "port", Value: 8080, Usage: "port for the web page"},
-		&cli.StringFlag{Name: "bind", Value: "127.0.0.1", Usage: "address to listen on"},
 		&cli.StringFlag{Name: "state", Value: "state.json", Usage: "file holding tokens and the ledger"},
-		&cli.StringFlag{Name: "public-url", Usage: "URL the browser uses to reach this server"},
 		&cli.DurationFlag{Name: "interval", Value: 12 * time.Hour, Usage: "how often to sync"},
 	},
 	Action: serve,
@@ -45,7 +41,6 @@ var command = &cli.Command{ //nolint:gochecknoglobals // urfave/cli wants one ro
 
 type config struct {
 	Port      int
-	Bind      string
 	StatePath string
 	PublicURL string
 	Interval  time.Duration
@@ -100,9 +95,8 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	apiServer := server.NewServer(application.store, application.google, trigger)
-	address := net.JoinHostPort(application.config.Bind, strconv.Itoa(application.config.Port))
 
-	err = server.Start(ctx, address, apiServer, frontend.DistFS())
+	err = server.Start(ctx, application.config.Port, apiServer, frontend.DistFS())
 	if err != nil {
 		return fmt.Errorf("run server: %w", err)
 	}
@@ -124,9 +118,8 @@ func syncOnce(ctx context.Context, cmd *cli.Command) error {
 func configFrom(cmd *cli.Command) config {
 	cfg := config{
 		Port:      cmd.Int("port"),
-		Bind:      cmd.String("bind"),
 		StatePath: cmd.String("state"),
-		PublicURL: cmd.String("public-url"),
+		PublicURL: os.Getenv("PUBLIC_URL"),
 		Interval:  cmd.Duration("interval"),
 	}
 

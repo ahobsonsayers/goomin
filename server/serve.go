@@ -26,12 +26,13 @@ const (
 )
 
 // Start runs the server until the context is cancelled.
-func Start(ctx context.Context, address string, apiServer ServerInterface, frontendFS fs.FS) error {
+func Start(ctx context.Context, port int, apiServer ServerInterface, frontendFS fs.FS) error {
 	router, err := newRouter(apiServer, frontendFS)
 	if err != nil {
 		return fmt.Errorf("build router: %w", err)
 	}
 
+	address := fmt.Sprintf(":%d", port)
 	httpServer := &http.Server{
 		Addr:              address,
 		Handler:           router,
