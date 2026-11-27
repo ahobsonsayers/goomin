@@ -18,7 +18,6 @@ import (
 	"github.com/ahobsonsayers/health-connectd/server"
 	"github.com/ahobsonsayers/health-connectd/state"
 	"github.com/ahobsonsayers/health-connectd/syncer"
-	"github.com/ahobsonsayers/health-connectd/worker"
 )
 
 var command = &cli.Command{ //nolint:gochecknoglobals // urfave/cli wants one root command.
@@ -74,7 +73,7 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	go worker.Every(ctx, application.config.Interval, func(ctx context.Context) {
+	scheduled := func() {
 		if !due(application.store, application.config.Interval) {
 			return
 		}
@@ -83,7 +82,23 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 		if runErr != nil {
 			slog.Error("scheduled sync failed", "error", runErr)
 		}
-	})
+	}
+
+	go func() {
+		scheduled()
+
+		ticker := time.NewTicker(application.config.Interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				scheduled()
+			}
+		}
+	}()
 
 	trigger := func() {
 		go func() {
