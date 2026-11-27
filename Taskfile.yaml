@@ -1,0 +1,76 @@
+# Docs: https://taskfile.dev/#/usage
+version: "3"
+
+vars:
+  BIN: health-connectd
+  STATE: ./data/state.json
+
+tasks:
+  format:
+    cmds:
+      - go tool gofumpt -l -w .
+
+  lint:
+    cmds:
+      - go tool golangci-lint run --fix ./...
+
+  generate:
+    aliases:
+      - gen
+    cmds:
+      - go tool oapi-codegen -config oapi.config.yaml openapi.yaml
+
+  test:
+    cmds:
+      - go test ./...
+
+  test:clean:
+    cmds:
+      - go clean -testcache
+      - task: test
+
+  build:
+    deps: [build:fe]
+    cmds:
+      - go build -v -o ./bin/{{.BIN}} ./cmd/{{.BIN}}
+
+  build:fe:
+    dir: frontend
+    cmds:
+      - bun install --frozen-lockfile
+      - bun run build
+
+  check:fe:
+    dir: frontend
+    cmds:
+      - bun install --frozen-lockfile
+      - bun run check
+
+  dev:fe:
+    dir: frontend
+    cmds:
+      - bun run dev
+
+  build:docker:
+    cmds:
+      - docker build . --tag {{.BIN}}
+
+  run:
+    deps: [build:fe]
+    cmds:
+      - go run ./cmd/{{.BIN}} --state {{.STATE}} {{.CLI_ARGS}}
+
+  sync:
+    cmds:
+      - go run ./cmd/{{.BIN}} --state {{.STATE}} sync
+
+  run:docker:
+    deps: [build:docker]
+    cmds:
+      - |
+        docker run --rm \
+          --name {{.BIN}} \
+          -p 8080:8080 \
+          -v "$PWD/data:/home/nonroot" \
+          --env-file .env \
+          {{.BIN}} --bind 0.0.0.0
