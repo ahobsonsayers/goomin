@@ -1,0 +1,195 @@
+openapi: 3.0.3
+info:
+  title: health-connectd
+  version: 1.0.0
+  description: Copies Google Health exercises into Garmin Connect.
+paths:
+  /api/status:
+    get:
+      operationId: getStatus
+      responses:
+        "200":
+          description: Current sign-in state, last sync and log.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Status"
+  /api/sync:
+    post:
+      operationId: startSync
+      responses:
+        "202":
+          description: A sync was queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+  /api/disconnect/{provider}:
+    post:
+      operationId: disconnect
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [google, garmin]
+      responses:
+        "200":
+          description: The provider was disconnected.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          description: Unknown provider.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+  /api/auth/google:
+    get:
+      operationId: startGoogle
+      responses:
+        "302":
+          description: Redirect to Google's consent screen.
+          headers:
+            Location:
+              schema:
+                type: string
+        "400":
+          description: Google client is not configured.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+  /api/auth/google/callback:
+    get:
+      operationId: finishGoogle
+      parameters:
+        - name: code
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+        - name: error
+          in: query
+          schema:
+            type: string
+      responses:
+        "303":
+          description: Redirect back to the page with a message.
+          headers:
+            Location:
+              schema:
+                type: string
+  /api/auth/garmin/start:
+    post:
+      operationId: startGarmin
+      responses:
+        "202":
+          description: The SSO session is ready for a password.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "502":
+          description: Garmin could not be reached.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+  /api/auth/garmin:
+    post:
+      operationId: signInGarmin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GarminLogin"
+      responses:
+        "200":
+          description: Either signed in or waiting for an MFA code.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GarminLoginResult"
+        "400":
+          description: No SSO session, or Garmin refused the details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+  /api/auth/garmin/mfa:
+    post:
+      operationId: submitGarminMFA
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GarminMFA"
+      responses:
+        "200":
+          description: Signed in.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          description: No SSO session, or the code was refused.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+components:
+  schemas:
+    Status:
+      type: object
+      required: [google, garmin, garminAs, lastSync, log]
+      properties:
+        google:
+          type: boolean
+        garmin:
+          type: boolean
+        garminAs:
+          type: string
+        lastSync:
+          type: string
+          description: RFC 3339 time of the last sync, empty when never.
+        log:
+          type: array
+          items:
+            type: string
+    Message:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+    GarminLogin:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+    GarminMFA:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+    GarminLoginResult:
+      type: object
+      required: [mfa]
+      properties:
+        mfa:
+          type: boolean
+          description: True when Garmin asked for a code from the account's authenticator.
