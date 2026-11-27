@@ -67,10 +67,10 @@ func (s *Sync) Run(ctx context.Context) error {
 		return fmt.Errorf("list exercises: %w", err)
 	}
 
-	pending := Pending(exercises, s.Store.View().Uploaded)
-	s.Store.Logf("%d exercise(s) found, %d new", len(exercises), len(pending))
+	fresh := pending(exercises, s.Store.View().Uploaded)
+	s.Store.Logf("%d exercise(s) found, %d new", len(exercises), len(fresh))
 
-	if len(pending) == 0 {
+	if len(fresh) == 0 {
 		s.markSynced()
 
 		return nil
@@ -83,15 +83,15 @@ func (s *Sync) Run(ctx context.Context) error {
 		return fmt.Errorf("garmin token: %w", err)
 	}
 
-	uploaded := s.uploadAll(ctx, pending, googleToken, garminToken)
+	uploaded := s.uploadAll(ctx, fresh, googleToken, garminToken)
 	s.markSynced()
-	s.Store.Logf("done: %d of %d pending uploaded", uploaded, len(pending))
+	s.Store.Logf("done: %d of %d pending uploaded", uploaded, len(fresh))
 
 	return nil
 }
 
-// Pending drops exercises already recorded in the ledger.
-func Pending(exercises []google.Exercise, ledger map[string]string) []google.Exercise {
+// pending drops exercises already recorded in the ledger.
+func pending(exercises []google.Exercise, ledger map[string]string) []google.Exercise {
 	var pending []google.Exercise
 
 	for _, exercise := range exercises {

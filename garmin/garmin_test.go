@@ -28,7 +28,7 @@ func TestTicketFromURL(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			require.Equal(t, test.want, TicketFromURL(test.url))
+			require.Equal(t, test.want, ticketFromURL(test.url))
 		})
 	}
 }

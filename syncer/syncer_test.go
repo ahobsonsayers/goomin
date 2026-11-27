@@ -58,8 +58,8 @@ func TestPending(t *testing.T) {
 
 	exercises := []google.Exercise{{ID: "1"}, {ID: "2"}, {ID: "3"}}
 
-	require.Len(t, Pending(exercises, map[string]string{"2": "then"}), 2)
-	require.Empty(t, Pending(exercises, map[string]string{"1": "", "2": "", "3": ""}))
+	require.Len(t, pending(exercises, map[string]string{"2": "then"}), 2)
+	require.Empty(t, pending(exercises, map[string]string{"1": "", "2": "", "3": ""}))
 }
 
 func TestRunUploadsOnlyNewExercises(t *testing.T) {

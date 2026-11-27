@@ -300,8 +300,8 @@ func UploadStatus(status int, body []byte) string {
 	return StatusUploaded
 }
 
-// TicketFromURL pulls the SSO ticket out of the URL Garmin redirects to.
-func TicketFromURL(raw string) string {
+// ticketFromURL pulls the SSO ticket out of the URL Garmin redirects to.
+func ticketFromURL(raw string) string {
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		return ""
@@ -313,7 +313,7 @@ func TicketFromURL(raw string) string {
 func parseOutcome(body []byte) Outcome {
 	match := responsePattern.FindSubmatch(body)
 	if match != nil {
-		ticket := TicketFromURL(string(match[1]))
+		ticket := ticketFromURL(string(match[1]))
 
 		return Outcome{Ticket: ticket}
 	}

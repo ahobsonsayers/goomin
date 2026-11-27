@@ -22,8 +22,8 @@ const (
 	requestTimeout = time.Minute
 )
 
-// Scopes are the permissions the sync needs. Garmin refuses TCX without location.
-var Scopes = []string{
+// scopes are the permissions the sync needs. Garmin refuses TCX without location.
+var scopes = []string{
 	"https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly",
 	"https://www.googleapis.com/auth/googlehealth.location.readonly",
 }
@@ -53,7 +53,7 @@ func (c *Client) AuthURL(stateValue string) string {
 		"client_id":     {c.ClientID},
 		"redirect_uri":  {c.RedirectURL},
 		"response_type": {"code"},
-		"scope":         {strings.Join(Scopes, " ")},
+		"scope":         {strings.Join(scopes, " ")},
 		"access_type":   {"offline"},
 		"prompt":        {"consent"},
 		"state":         {stateValue},
