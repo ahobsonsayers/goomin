@@ -172,18 +172,17 @@ vendor/
 # -------------------
 
 # Ignore certain directories
-build/
 bin/
+build/
+data/
+docs/
 scratch/
 
 # Ignore certain files
 *.DS_Store
+*.secrets
 .~lock*
 .env
 .secrets
-*.secrets
 scratch*
-
-# goomin
-data/
 state.json*
