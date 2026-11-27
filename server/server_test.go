@@ -12,8 +12,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ahobsonsayers/health-connectd/google"
-	"github.com/ahobsonsayers/health-connectd/state"
+	"github.com/ahobsonsayers/goomin/google"
+	"github.com/ahobsonsayers/goomin/state"
 )
 
 func TestStatusReportsTheStore(t *testing.T) {

@@ -184,6 +184,6 @@ scratch/
 *.secrets
 scratch*
 
-# health-connectd
+# goomin
 data/
 state.json*

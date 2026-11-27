@@ -1,4 +1,4 @@
-# health-connectd
+# goomin
 
 Reads workouts from Google Health and uploads them to Garmin Connect as TCX, on a schedule, from a server.
 

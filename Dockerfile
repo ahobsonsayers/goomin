@@ -21,15 +21,15 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY . .
 COPY --from=frontend /app/dist ./frontend/dist
 RUN --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go build -v -o ./bin/health-connectd ./cmd/health-connectd
+    CGO_ENABLED=0 go build -v -o ./bin/goomin ./cmd/goomin
 
 FROM gcr.io/distroless/static-debian13:nonroot
 
 WORKDIR /home/nonroot
 
-COPY --from=builder /app/bin/health-connectd /health-connectd
+COPY --from=builder /app/bin/goomin /goomin
 
 EXPOSE 8080
 
-ENTRYPOINT ["/health-connectd"]
+ENTRYPOINT ["/goomin"]
 CMD ["--state", "/home/nonroot/state.json"]

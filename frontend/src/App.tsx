@@ -126,7 +126,7 @@ function App() {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
       <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">health-connectd</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">goomin</h1>
         <p className="text-muted-foreground text-sm">
           Google Health exercises, uploaded to Garmin Connect every 12 hours.
         </p>

@@ -4,7 +4,7 @@ Server that copies Google Health exercises into Garmin Connect, served with a sm
 
 ## Layout
 
-- `cmd/health-connectd` — cli (`serve` by default, `sync` for one run) and token wiring
+- `cmd/goomin` — cli (`serve` by default, `sync` for one run) and token wiring
 - `server/` — chi + oapi-codegen strict API: `server/server.gen.go` is generated from `schema/openapi.yaml` by `task generate`; never edit it by hand
 - `google/` — Google Health API: auth URL, token exchange/refresh, exercise list and TCX export
 - `garmin/` — Garmin Connect: SSO form login (with MFA), ticket exchange, TCX upload

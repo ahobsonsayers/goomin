@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ahobsonsayers/health-connectd/garmin"
-	"github.com/ahobsonsayers/health-connectd/google"
-	"github.com/ahobsonsayers/health-connectd/state"
-	"github.com/ahobsonsayers/health-connectd/syncer"
+	"github.com/ahobsonsayers/goomin/garmin"
+	"github.com/ahobsonsayers/goomin/google"
+	"github.com/ahobsonsayers/goomin/state"
+	"github.com/ahobsonsayers/goomin/syncer"
 )
 
 // errNotConnected means the provider has never been signed in.

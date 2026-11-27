@@ -12,16 +12,16 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/urfave/cli/v3"
 
-	"github.com/ahobsonsayers/health-connectd/frontend"
-	"github.com/ahobsonsayers/health-connectd/garmin"
-	"github.com/ahobsonsayers/health-connectd/google"
-	"github.com/ahobsonsayers/health-connectd/server"
-	"github.com/ahobsonsayers/health-connectd/state"
-	"github.com/ahobsonsayers/health-connectd/syncer"
+	"github.com/ahobsonsayers/goomin/frontend"
+	"github.com/ahobsonsayers/goomin/garmin"
+	"github.com/ahobsonsayers/goomin/google"
+	"github.com/ahobsonsayers/goomin/server"
+	"github.com/ahobsonsayers/goomin/state"
+	"github.com/ahobsonsayers/goomin/syncer"
 )
 
 var command = &cli.Command{ //nolint:gochecknoglobals // urfave/cli wants one root command.
-	Name:  "health-connectd",
+	Name:  "goomin",
 	Usage: "sync Google Health exercises into Garmin Connect",
 	Flags: []cli.Flag{
 		&cli.IntFlag{Name: "port", Value: 8080, Usage: "port for the web page"},
@@ -57,7 +57,7 @@ func main() {
 
 	err := command.Run(context.Background(), os.Args)
 	if err != nil {
-		slog.Error("health-connectd stopped", "error", err)
+		slog.Error("goomin stopped", "error", err)
 		os.Exit(1)
 	}
 }

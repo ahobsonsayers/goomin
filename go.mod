@@ -1,4 +1,4 @@
-module github.com/ahobsonsayers/health-connectd
+module github.com/ahobsonsayers/goomin
 
 go 1.27.2
 

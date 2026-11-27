@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ahobsonsayers/health-connectd/state"
+	"github.com/ahobsonsayers/goomin/state"
 )
 
 const (

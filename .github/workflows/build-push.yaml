@@ -29,7 +29,7 @@ permissions:
   contents: read
 
 env:
-  IMAGE_REPOSITORY: arranhs/health-connectd
+  IMAGE_REPOSITORY: arranhs/goomin
 
 jobs:
   build-push:

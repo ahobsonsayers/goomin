@@ -86,7 +86,7 @@ func newRouter(apiServer ServerInterface, frontendFS fs.FS) (http.Handler, error
 
 func createLoggerMiddleware() func(http.Handler) http.Handler {
 	logger := httplog.NewLogger(
-		"health-connectd",
+		"goomin",
 		httplog.Options{
 			LogLevel:       slog.LevelDebug,
 			RequestHeaders: true,
