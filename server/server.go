@@ -1,24 +1,16 @@
-package web
+package server
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io/fs"
 	"net/http"
 	"net/url"
-	"path"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-
-	"github.com/ahobsonsayers/health-connectd/api"
-	"github.com/ahobsonsayers/health-connectd/frontend"
 	"github.com/ahobsonsayers/health-connectd/garmin"
 	"github.com/ahobsonsayers/health-connectd/google"
 	"github.com/ahobsonsayers/health-connectd/state"
@@ -35,76 +27,23 @@ type Server struct {
 	Google  *google.Client
 	Trigger func()
 
-	router chi.Router
-	assets fs.FS
-	mu     sync.Mutex
-	login  *garmin.Login
-	state  string
+	mu    sync.Mutex
+	login *garmin.Login
+	state string
 }
 
-// New builds the router: JSON under /api, the React build everywhere else.
-func New(store *state.Store, googleClient *google.Client, trigger func()) (*Server, error) {
-	assets, err := frontend.FS()
-	if err != nil {
-		return nil, fmt.Errorf("read frontend build: %w", err)
-	}
-
-	server := &Server{
+func NewServer(store *state.Store, googleClient *google.Client, trigger func()) ServerInterface {
+	return NewStrictHandler(&Server{
 		Store:   store,
 		Google:  googleClient,
 		Trigger: trigger,
-		assets:  assets,
-	}
-
-	router := chi.NewRouter()
-
-	strictHandler := api.NewStrictHandler(server, nil)
-	api.HandlerFromMux(strictHandler, router)
-	router.Get("/*", server.page)
-	server.router = router
-
-	return server, nil
-}
-
-// ServeHTTP applies basic auth, then the routes.
-func (s *Server) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	s.router.ServeHTTP(writer, request)
-}
-
-func (s *Server) page(writer http.ResponseWriter, request *http.Request) {
-	cleanPath := path.Clean(request.URL.Path)
-	name := strings.TrimPrefix(cleanPath, "/")
-
-	if name == "" || name == "." {
-		name = "index.html"
-	}
-
-	body, err := fs.ReadFile(s.assets, name)
-	if err != nil {
-		body, err = fs.ReadFile(s.assets, "index.html")
-		if err != nil {
-			http.NotFound(writer, request)
-
-			return
-		}
-		name = "index.html"
-	}
-
-	content := bytes.NewReader(body)
-
-	http.ServeContent(
-		writer,
-		request,
-		name,
-		time.Time{},
-		content,
-	)
+	}, nil)
 }
 
 func (s *Server) GetStatus(
 	_ context.Context,
-	_ api.GetStatusRequestObject,
-) (api.GetStatusResponseObject, error) {
+	_ GetStatusRequestObject,
+) (GetStatusResponseObject, error) {
 	data := s.Store.View()
 
 	lastSync := ""
@@ -112,7 +51,7 @@ func (s *Server) GetStatus(
 		lastSync = data.LastSync.Format(time.RFC3339)
 	}
 
-	return api.GetStatus200JSONResponse{
+	return GetStatus200JSONResponse{
 		Google:   data.Google.Connected(),
 		Garmin:   data.Garmin.Connected(),
 		GarminAs: data.GarminAs,
@@ -121,18 +60,18 @@ func (s *Server) GetStatus(
 	}, nil
 }
 
-func (s *Server) StartSync(_ context.Context, _ api.StartSyncRequestObject) (api.StartSyncResponseObject, error) {
+func (s *Server) StartSync(_ context.Context, _ StartSyncRequestObject) (StartSyncResponseObject, error) {
 	s.Trigger()
 
-	return api.StartSync202JSONResponse{Message: "sync started"}, nil
+	return StartSync202JSONResponse{Message: "sync started"}, nil
 }
 
 func (s *Server) StartGoogle(
 	_ context.Context,
-	_ api.StartGoogleRequestObject,
-) (api.StartGoogleResponseObject, error) {
+	_ StartGoogleRequestObject,
+) (StartGoogleResponseObject, error) {
 	if s.Google.ClientID == "" || s.Google.ClientSecret == "" {
-		return api.StartGoogle400JSONResponse{Message: "set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET"}, nil
+		return StartGoogle400JSONResponse{Message: "set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET"}, nil
 	}
 
 	value := randomToken()
@@ -146,18 +85,18 @@ func (s *Server) StartGoogle(
 
 func (s *Server) FinishGoogle(
 	ctx context.Context,
-	request api.FinishGoogleRequestObject,
-) (api.FinishGoogleResponseObject, error) {
-	refusal := value(request.Params.Error)
+	request FinishGoogleRequestObject,
+) (FinishGoogleResponseObject, error) {
+	refusal := text(request.Params.Error)
 	if refusal != "" {
 		return back("google refused the sign-in: " + refusal), nil
 	}
 
-	if value(request.Params.State) != s.currentState() {
+	if text(request.Params.State) != s.currentState() {
 		return back("google returned to a different browser session"), nil
 	}
 
-	token, err := s.Google.Exchange(ctx, value(request.Params.Code))
+	token, err := s.Google.Exchange(ctx, text(request.Params.Code))
 	if err != nil {
 		message := err.Error()
 
@@ -182,76 +121,76 @@ func (s *Server) FinishGoogle(
 
 func (s *Server) StartGarmin(
 	ctx context.Context,
-	_ api.StartGarminRequestObject,
-) (api.StartGarminResponseObject, error) {
+	_ StartGarminRequestObject,
+) (StartGarminResponseObject, error) {
 	login := garmin.NewLogin()
 
 	err := login.Start(ctx)
 	if err != nil {
-		return api.StartGarmin502JSONResponse{Message: err.Error()}, nil
+		return StartGarmin502JSONResponse{Message: err.Error()}, nil
 	}
 
 	s.mu.Lock()
 	s.login = login
 	s.mu.Unlock()
 
-	return api.StartGarmin202JSONResponse{Message: "ready"}, nil
+	return StartGarmin202JSONResponse{Message: "ready"}, nil
 }
 
 func (s *Server) SignInGarmin(
 	ctx context.Context,
-	request api.SignInGarminRequestObject,
-) (api.SignInGarminResponseObject, error) {
+	request SignInGarminRequestObject,
+) (SignInGarminResponseObject, error) {
 	if request.Body == nil {
-		return api.SignInGarmin400JSONResponse{Message: "username and password are required"}, nil
+		return SignInGarmin400JSONResponse{Message: "username and password are required"}, nil
 	}
 
 	login := s.currentLogin()
 	if login == nil {
-		return api.SignInGarmin400JSONResponse{Message: loginFailed}, nil
+		return SignInGarmin400JSONResponse{Message: loginFailed}, nil
 	}
 
 	outcome, err := login.SignIn(ctx, request.Body.Username, request.Body.Password)
 	if err != nil {
-		return api.SignInGarmin400JSONResponse{Message: err.Error()}, nil
+		return SignInGarmin400JSONResponse{Message: err.Error()}, nil
 	}
 
 	if outcome.NeedsMFA {
-		return api.SignInGarmin200JSONResponse{Mfa: true}, nil
+		return SignInGarmin200JSONResponse{Mfa: true}, nil
 	}
 
 	_, err = s.finishGarmin(ctx, outcome.Ticket)
 	if err != nil {
-		return api.SignInGarmin400JSONResponse{Message: err.Error()}, nil
+		return SignInGarmin400JSONResponse{Message: err.Error()}, nil
 	}
 
-	return api.SignInGarmin200JSONResponse{Mfa: false}, nil
+	return SignInGarmin200JSONResponse{Mfa: false}, nil
 }
 
 func (s *Server) SubmitGarminMFA(
 	ctx context.Context,
-	request api.SubmitGarminMFARequestObject,
-) (api.SubmitGarminMFAResponseObject, error) {
+	request SubmitGarminMFARequestObject,
+) (SubmitGarminMFAResponseObject, error) {
 	if request.Body == nil {
-		return api.SubmitGarminMFA400JSONResponse{Message: "the code is required"}, nil
+		return SubmitGarminMFA400JSONResponse{Message: "the code is required"}, nil
 	}
 
 	login := s.currentLogin()
 	if login == nil {
-		return api.SubmitGarminMFA400JSONResponse{Message: loginFailed}, nil
+		return SubmitGarminMFA400JSONResponse{Message: loginFailed}, nil
 	}
 
 	ticket, err := login.SubmitMFA(ctx, request.Body.Code)
 	if err != nil {
-		return api.SubmitGarminMFA400JSONResponse{Message: err.Error()}, nil
+		return SubmitGarminMFA400JSONResponse{Message: err.Error()}, nil
 	}
 
 	message, err := s.finishGarmin(ctx, ticket)
 	if err != nil {
-		return api.SubmitGarminMFA400JSONResponse{Message: err.Error()}, nil
+		return SubmitGarminMFA400JSONResponse{Message: err.Error()}, nil
 	}
 
-	return api.SubmitGarminMFA200JSONResponse{Message: message}, nil
+	return SubmitGarminMFA200JSONResponse{Message: message}, nil
 }
 
 func (s *Server) finishGarmin(ctx context.Context, ticket string) (string, error) {
@@ -286,8 +225,8 @@ func (s *Server) finishGarmin(ctx context.Context, ticket string) (string, error
 
 func (s *Server) Disconnect(
 	_ context.Context,
-	request api.DisconnectRequestObject,
-) (api.DisconnectResponseObject, error) {
+	request DisconnectRequestObject,
+) (DisconnectResponseObject, error) {
 	provider := string(request.Provider)
 
 	err := s.Store.Update(func(data *state.Data) error {
@@ -304,12 +243,12 @@ func (s *Server) Disconnect(
 		return nil
 	})
 	if err != nil {
-		return api.Disconnect400JSONResponse{Message: err.Error()}, nil
+		return Disconnect400JSONResponse{Message: err.Error()}, nil
 	}
 
 	s.Store.Logf("%s disconnected", provider)
 
-	return api.Disconnect200JSONResponse{Message: provider + " disconnected"}, nil
+	return Disconnect200JSONResponse{Message: provider + " disconnected"}, nil
 }
 
 func (s *Server) currentLogin() *garmin.Login {
@@ -326,12 +265,12 @@ func (s *Server) currentState() string {
 	return s.state
 }
 
-func back(message string) api.FinishGoogle303Response {
+func back(message string) FinishGoogle303Response {
 	query := url.Values{"message": {message}}
 	location := "/?" + query.Encode()
 
-	return api.FinishGoogle303Response{
-		Headers: api.FinishGoogle303ResponseHeaders{Location: &location},
+	return FinishGoogle303Response{
+		Headers: FinishGoogle303ResponseHeaders{Location: &location},
 	}
 }
 
@@ -346,7 +285,7 @@ func randomToken() string {
 	return hex.EncodeToString(raw)
 }
 
-func value(pointer *string) string {
+func text(pointer *string) string {
 	if pointer == nil {
 		return ""
 	}

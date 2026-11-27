@@ -6,7 +6,14 @@ import (
 )
 
 //go:embed all:dist
-var distFS embed.FS
+var dist embed.FS
 
-// FS is the built app, rooted at index.html.
-func FS() (fs.FS, error) { return fs.Sub(distFS, "dist") }
+// DistFS returns the built frontend. Run `task build:fe` before building the binary.
+func DistFS() fs.FS {
+	sub, err := fs.Sub(dist, "dist")
+	if err != nil {
+		panic(err)
+	}
+
+	return sub
+}

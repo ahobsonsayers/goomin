@@ -15,11 +15,11 @@ Click **Connect Google**, then **Connect Garmin**. Sync runs every 12 hours, onc
 
 ## Layout
 
-- `openapi.yaml` — the API; `task generate` writes `api/api.gen.go` (chi router + strict server)
+- `schema/openapi.yaml` — the API; `task generate` writes `server/server.gen.go` (chi router + strict server + request validation)
 - `google/`, `garmin/` — the two providers (Garmin: SSO form, MFA, ticket exchange, TCX upload)
 - `syncer/` — ledger, per-exercise isolation, 401 retry
 - `state/` — one JSON file: tokens, upload ledger, log
-- `web/` — API handlers and static serving
+- `server/` — API handlers served under `/api`, plus the static build
 - `frontend/` — Vite+ (React, Tailwind, shadcn), built to `frontend/dist` and embedded with `go:embed`
 
 ## Config

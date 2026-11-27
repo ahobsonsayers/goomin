@@ -9,7 +9,12 @@ tool (
 )
 
 require (
+	github.com/getkin/kin-openapi v0.153.0
+	github.com/go-chi/chi/v5 v5.5.0
+	github.com/go-chi/httplog/v2 v2.1.1
 	github.com/joho/godotenv v1.5.1
+	github.com/oapi-codegen/nethttp-middleware v1.3.1
+	github.com/oapi-codegen/runtime v1.9.1
 	github.com/stretchr/testify v1.12.1
 	github.com/urfave/cli/v3 v3.14.0
 )
@@ -79,9 +84,7 @@ require (
 	github.com/firefart/nonamedreturns v1.0.8 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fzipp/gocyclo v0.6.0 // indirect
-	github.com/getkin/kin-openapi v0.153.0 // indirect
 	github.com/ghostiam/protogetter v1.0.1 // indirect
-	github.com/go-chi/chi/v5 v5.5.0 // indirect
 	github.com/go-critic/go-critic v0.15.0 // indirect
 	github.com/go-openapi/jsonpointer v1.0.2 // indirect
 	github.com/go-toolsmith/astcast v1.1.0 // indirect
@@ -113,6 +116,7 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gordonklaus/ineffassign v0.2.0 // indirect
+	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/gostaticanalysis/analysisutil v0.7.1 // indirect
 	github.com/gostaticanalysis/comment v1.5.0 // indirect
 	github.com/gostaticanalysis/forcetypeassert v0.2.0 // indirect
@@ -160,7 +164,6 @@ require (
 	github.com/nishanths/predeclared v0.3.0 // indirect
 	github.com/nunnatsa/ginkgolinter v0.24.0 // indirect
 	github.com/oapi-codegen/oapi-codegen/v2 v2.9.0 // indirect
-	github.com/oapi-codegen/runtime v1.9.1 // indirect
 	github.com/oasdiff/yaml v0.1.3 // indirect
 	github.com/oasdiff/yaml3 v0.0.16 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect

@@ -5,12 +5,12 @@ Server that copies Google Health exercises into Garmin Connect, served with a sm
 ## Layout
 
 - `cmd/health-connectd` — cli (`serve` by default, `sync` for one run) and token wiring
-- `api/` — generated from `openapi.yaml` by `task generate`; never edit by hand
+- `server/` — chi + oapi-codegen strict API: `server/server.gen.go` is generated from `schema/openapi.yaml` by `task generate`; never edit it by hand
 - `google/` — Google Health API: auth URL, token exchange/refresh, exercise list and TCX export
 - `garmin/` — Garmin Connect: SSO form login (with MFA), ticket exchange, TCX upload
 - `syncer/` — the run itself: ledger, per-exercise isolation, 401 retry
 - `state/` — one JSON file: tokens, upload ledger, log (`0600`, dir `0700`)
-- `web/` — strict API handlers and static serving of the React build; no auth, run behind a proxy on loopback
+- `server/serve.go` — router, request validation and the React build; no auth, run behind a proxy on loopback
 - `frontend/` — Vite+ (React, Tailwind, shadcn), built to `dist/` and embedded with `go:embed`; bun, not npm
 - `worker/` — interval loop
 
@@ -22,7 +22,7 @@ Server that copies Google Health exercises into Garmin Connect, served with a sm
 - Keep the 90-day window wider than the interval; Google's Testing-mode refresh token dies weekly.
 - Garmin refuses TCX sports other than Running, Biking, Other: `RewriteSport` stays.
 - Production code lands with a test that was watched failing first; `task lint` and `task test` must be clean.
-- The API lives in `openapi.yaml`: change the spec, run `task generate`, then implement the strict handler. Do not add routes by hand.
+- The API lives in `schema/openapi.yaml`: change the spec, run `task generate`, then implement the strict handler. Do not add routes by hand. Call `GetSpec()`, not the deprecated `GetSwagger()`.
 
 ## Commands
 

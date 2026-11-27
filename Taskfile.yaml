@@ -18,7 +18,7 @@ tasks:
     aliases:
       - gen
     cmds:
-      - go tool oapi-codegen -config oapi.config.yaml openapi.yaml
+      - go tool oapi-codegen -config oapi.config.yaml schema/openapi.yaml
 
   test:
     cmds:

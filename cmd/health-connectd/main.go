@@ -2,11 +2,9 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -16,15 +14,14 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/urfave/cli/v3"
 
+	"github.com/ahobsonsayers/health-connectd/frontend"
 	"github.com/ahobsonsayers/health-connectd/garmin"
 	"github.com/ahobsonsayers/health-connectd/google"
+	"github.com/ahobsonsayers/health-connectd/server"
 	"github.com/ahobsonsayers/health-connectd/state"
 	"github.com/ahobsonsayers/health-connectd/syncer"
-	"github.com/ahobsonsayers/health-connectd/web"
 	"github.com/ahobsonsayers/health-connectd/worker"
 )
-
-const shutdownTime = 10 * time.Second
 
 var command = &cli.Command{ //nolint:gochecknoglobals // urfave/cli wants one root command.
 	Name:  "health-connectd",
@@ -82,39 +79,6 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	trigger := func() {
-		go func() {
-			runErr := application.sync.Run(ctx)
-			if runErr != nil {
-				slog.Error("sync failed", "error", runErr)
-			}
-		}()
-	}
-
-	handler, err := web.New(
-		application.store,
-		application.google,
-		trigger,
-	)
-	if err != nil {
-		return fmt.Errorf("build web server: %w", err)
-	}
-
-	server := &http.Server{ //nolint:exhaustruct // Only these fields matter here.
-		Addr:              net.JoinHostPort(application.config.Bind, strconv.Itoa(application.config.Port)),
-		Handler:           handler,
-		ReadHeaderTimeout: shutdownTime,
-	}
-
-	go func() {
-		slog.Info("listening", "url", application.config.PublicURL)
-
-		listenErr := server.ListenAndServe()
-		if listenErr != nil && !errors.Is(listenErr, http.ErrServerClosed) {
-			slog.Error("web server stopped", "error", listenErr)
-		}
-	}()
-
 	go worker.Every(ctx, application.config.Interval, func(ctx context.Context) {
 		if !due(application.store, application.config.Interval) {
 			return
@@ -126,12 +90,24 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 		}
 	})
 
-	<-ctx.Done()
+	trigger := func() {
+		go func() {
+			runErr := application.sync.Run(ctx)
+			if runErr != nil {
+				slog.Error("sync failed", "error", runErr)
+			}
+		}()
+	}
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTime)
-	defer cancel()
+	apiServer := server.NewServer(application.store, application.google, trigger)
+	address := net.JoinHostPort(application.config.Bind, strconv.Itoa(application.config.Port))
 
-	return server.Shutdown(shutdownCtx)
+	err = server.Start(ctx, address, apiServer, frontend.DistFS())
+	if err != nil {
+		return fmt.Errorf("run server: %w", err)
+	}
+
+	return nil
 }
 
 func syncOnce(ctx context.Context, cmd *cli.Command) error {
