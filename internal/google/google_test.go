@@ -2,7 +2,6 @@ package google
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -34,71 +33,7 @@ func TestAuthURL(t *testing.T) {
 	require.Equal(t, "offline", query.Get("access_type"))
 	require.Equal(t, "consent", query.Get("prompt"))
 	require.Equal(t, "st", query.Get("state"))
-	require.Contains(t, query.Get("scope"), "googlehealth.location.readonly")
-	require.Contains(t, query.Get("scope"), "googlehealth.activity_and_fitness.readonly")
-}
-
-func TestExercisesPages(t *testing.T) {
-	t.Parallel()
-
-	var authors, filters []string
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authors = append(authors, r.Header.Get("Authorization"))
-		filters = append(filters, r.URL.Query().Get("filter"))
-
-		if r.URL.Query().Get("pageToken") == "" {
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"dataPoints": []map[string]any{{
-					"name":     "users/me/dataTypes/exercise/dataPoints/1",
-					"exercise": map[string]any{"displayName": "Morning Run"},
-				}},
-				"nextPageToken": "next",
-			})
-
-			return
-		}
-
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"dataPoints": []map[string]any{{"name": "users/me/dataTypes/exercise/dataPoints/2"}},
-		})
-	}))
-	defer server.Close()
-
-	client := &Client{BaseURL: server.URL, HTTP: server.Client()}
-
-	since := time.Date(2026, 11, 25, 0, 0, 0, 0, time.UTC)
-
-	found, err := client.Exercises(context.Background(), "token", since)
-	require.NoError(t, err)
-	require.Len(t, found, 2)
-	require.Equal(t, "1", found[0].ID)
-	require.Equal(t, "Morning Run", found[0].Label)
-	require.Equal(t, "2", found[1].ID)
-	require.Equal(t, "exercise", found[1].Label)
-	require.Equal(t, "Bearer token", authors[0])
-	require.Equal(t, `exercise.interval.civil_start_time >= "2026-11-25T00:00:00"`, filters[0])
-	require.Len(t, filters, 2)
-}
-
-func TestExportTCX(t *testing.T) {
-	t.Parallel()
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("alt") != "media" {
-			http.Error(w, "missing alt", http.StatusBadRequest)
-
-			return
-		}
-		_, _ = w.Write([]byte("<TrainingCenterDatabase/>"))
-	}))
-	defer server.Close()
-
-	client := &Client{BaseURL: server.URL, HTTP: server.Client()}
-
-	tcx, err := client.ExportTCX(context.Background(), "token", "users/me/dataTypes/exercise/dataPoints/1")
-	require.NoError(t, err)
-	require.Equal(t, "<TrainingCenterDatabase/>", string(tcx))
+	require.Equal(t, "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly", query.Get("scope"))
 }
 
 func TestTokenError(t *testing.T) {
@@ -110,4 +45,30 @@ func TestTokenError(t *testing.T) {
 	config := tokenError("invalid_client", "Unauthorized")
 	require.NotErrorIs(t, config, ErrGrantDead)
 	require.ErrorContains(t, config, "invalid_client")
+}
+
+func TestDailySteps(t *testing.T) {
+	t.Parallel()
+
+	var authHeader, filter string
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		authHeader = request.Header.Get("Authorization")
+		filter = request.URL.Query().Get("filter")
+
+		_, _ = writer.Write([]byte(`{"dataPoints":[
+			{"steps":{"count":"40","interval":{"civilStartTime":{"date":{"year":2026,"month":11,"day":4}}}}},
+			{"steps":{"count":"60","interval":{"civilStartTime":{"date":{"year":2026,"month":11,"day":4}}}}},
+			{"steps":{"count":"10","interval":{"civilStartTime":{"date":{"year":2026,"month":11,"day":5}}}}}
+		]}`))
+	}))
+	defer server.Close()
+
+	client := &Client{BaseURL: server.URL, HTTP: server.Client()}
+
+	found, err := client.DailySteps(context.Background(), "token", time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC))
+	require.NoError(t, err)
+	require.Equal(t, "Bearer token", authHeader)
+	require.Contains(t, filter, `steps.interval.civil_start_time >= "2026-11-01`)
+	require.Equal(t, []StepDay{{Date: "2026-11-04", Steps: 100}, {Date: "2026-11-05", Steps: 10}}, found)
 }

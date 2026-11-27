@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,24 +20,22 @@ const (
 	authEndpoint   = "https://accounts.google.com/o/oauth2/v2/auth"
 	tokenEndpoint  = "https://oauth2.googleapis.com/token"
 	healthAPI      = "https://health.googleapis.com/v4"
-	exerciseCap    = 25
+	stepsCap       = 10000
 	requestTimeout = time.Minute
 )
 
-// scopes are the permissions the sync needs. Garmin refuses TCX without location.
+// scopes grant the step data the sync reads.
 var scopes = []string{
 	"https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly",
-	"https://www.googleapis.com/auth/googlehealth.location.readonly",
 }
 
 // ErrGrantDead means the refresh token is gone for good, not a temporary failure.
 var ErrGrantDead = errors.New("google: sign-in has expired")
 
-// Exercise is one workout in Google Health.
-type Exercise struct {
-	ID    string
-	Name  string
-	Label string
+// StepDay is the step total for one civil day, local to the recording device.
+type StepDay struct {
+	Date  string // YYYY-MM-DD
+	Steps int
 }
 
 // Client holds the OAuth client settings and the HTTP client used for calls.
@@ -83,112 +83,39 @@ func (c *Client) Refresh(ctx context.Context, refreshToken string) (state.Token,
 	return c.postToken(ctx, form, refreshToken)
 }
 
-// Exercises lists workouts that started at or after since, oldest first.
-func (c *Client) Exercises(ctx context.Context, accessToken string, since time.Time) ([]Exercise, error) {
-	var found []Exercise
-
-	pageToken := ""
-	for {
-		query := url.Values{
-			"filter":   {`exercise.interval.civil_start_time >= "` + Civil(since) + `"`},
-			"pageSize": {fmt.Sprint(exerciseCap)},
-		}
-		if pageToken != "" {
-			query.Set("pageToken", pageToken)
-		}
-
-		var page exercisePage
-
-		endpoint := c.base() + "/users/me/dataTypes/exercise/dataPoints?" + query.Encode()
-
-		err := c.getJSON(ctx, accessToken, endpoint, &page)
-		if err != nil {
-			return nil, fmt.Errorf("list exercises: %w", err)
-		}
-
-		for _, point := range page.DataPoints {
-			if point.Name == "" {
-				continue
-			}
-
-			label := point.Exercise.DisplayName
-			if label == "" {
-				label = "exercise"
-			}
-
-			slash := strings.LastIndex(point.Name, "/")
-			exerciseID := point.Name[slash+1:]
-
-			found = append(found, Exercise{
-				ID:    exerciseID,
-				Name:  point.Name,
-				Label: label,
-			})
-		}
-
-		pageToken = page.NextPageToken
-		if pageToken == "" {
-			return found, nil
-		}
-	}
-}
-
-// ExportTCX returns the TCX Google generated for one exercise.
-func (c *Client) ExportTCX(ctx context.Context, accessToken, name string) ([]byte, error) {
-	endpoint := c.base() + "/" + name + ":exportExerciseTcx?alt=media"
-
-	request, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodGet,
-		endpoint,
-		http.NoBody,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("build export request: %w", err)
-	}
-	request.Header.Set("Authorization", "Bearer "+accessToken)
-
-	response, err := c.client().Do(request)
-	if err != nil {
-		return nil, fmt.Errorf("export %s: %w", name, err)
-	}
-	defer response.Body.Close()
-
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read export: %w", err)
-	}
-
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("export %s: Google returned %d: %s", name, response.StatusCode, snippet(body))
-	}
-
-	return body, nil
-}
-
 // Civil is the offset-free timestamp the exercise filter compares against.
 func Civil(t time.Time) string { return t.UTC().Format("2006-01-02T15:04:05") }
 
-type exercisePage struct {
-	DataPoints    []dataPoint `json:"dataPoints"`
+type stepPage struct {
+	DataPoints    []stepPoint `json:"dataPoints"`
 	NextPageToken string      `json:"nextPageToken"`
 }
 
-type exerciseDetail struct {
-	DisplayName string `json:"displayName"`
+type stepPoint struct {
+	Steps stepRecord `json:"steps"`
 }
 
-type dataPoint struct {
-	Name     string         `json:"name"`
-	Exercise exerciseDetail `json:"exercise"`
+type stepRecord struct {
+	Count    string       `json:"count"`
+	Interval stepInterval `json:"interval"`
 }
 
-type tokenResponse struct {
-	AccessToken      string `json:"access_token"`
-	RefreshToken     string `json:"refresh_token"`
-	ExpiresIn        int    `json:"expires_in"`
-	Error            string `json:"error"`
-	ErrorDescription string `json:"error_description"`
+type stepInterval struct {
+	CivilStartTime civilTime `json:"civilStartTime"`
+}
+
+type civilTime struct {
+	Date civilDate `json:"date"`
+}
+
+type civilDate struct {
+	Year  int `json:"year"`
+	Month int `json:"month"`
+	Day   int `json:"day"`
+}
+
+func (d civilDate) String() string {
+	return fmt.Sprintf("%04d-%02d-%02d", d.Year, d.Month, d.Day)
 }
 
 func (c *Client) postToken(ctx context.Context, form url.Values, keepRefresh string) (state.Token, error) {
@@ -277,12 +204,68 @@ func (c *Client) getJSON(ctx context.Context, accessToken, endpoint string, into
 	return nil
 }
 
-func (c *Client) base() string {
-	if c.BaseURL != "" {
-		return strings.TrimSuffix(c.BaseURL, "/")
+type tokenResponse struct {
+	AccessToken      string `json:"access_token"`
+	RefreshToken     string `json:"refresh_token"`
+	ExpiresIn        int    `json:"expires_in"`
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
+}
+
+// DailySteps totals the recorded steps per civil day since the given date.
+// The list endpoint only accepts >= filters, so the window grows every run and the syncer trims it with the ledger.
+func (c *Client) DailySteps(ctx context.Context, accessToken string, since time.Time) ([]StepDay, error) {
+	dayTotals := map[string]int{}
+	var orderedDays []string
+
+	pageToken := ""
+	for {
+		query := url.Values{
+			"filter":   {`steps.interval.civil_start_time >= "` + Civil(since) + `"`},
+			"pageSize": {fmt.Sprint(stepsCap)},
+		}
+		if pageToken != "" {
+			query.Set("pageToken", pageToken)
+		}
+
+		var page stepPage
+
+		endpoint := c.base() + "/users/me/dataTypes/steps/dataPoints?" + query.Encode()
+
+		err := c.getJSON(ctx, accessToken, endpoint, &page)
+		if err != nil {
+			return nil, fmt.Errorf("list steps: %w", err)
+		}
+
+		for _, point := range page.DataPoints {
+			count, err := strconv.Atoi(point.Steps.Count)
+			if err != nil || count <= 0 {
+				continue
+			}
+
+			date := point.Steps.Interval.CivilStartTime.Date.String()
+
+			if _, seen := dayTotals[date]; !seen {
+				orderedDays = append(orderedDays, date)
+			}
+			dayTotals[date] += count
+		}
+
+		pageToken = page.NextPageToken
+		if pageToken == "" {
+			break
+		}
 	}
 
-	return healthAPI
+	slices.Sort(orderedDays)
+
+	totals := make([]StepDay, 0, len(orderedDays))
+
+	for _, date := range orderedDays {
+		totals = append(totals, StepDay{Date: date, Steps: dayTotals[date]})
+	}
+
+	return totals, nil
 }
 
 func tokenError(code, description string) error {
@@ -299,6 +282,14 @@ func (c *Client) client() *http.Client {
 	}
 
 	return &http.Client{Timeout: requestTimeout}
+}
+
+func (c *Client) base() string {
+	if c.BaseURL != "" {
+		return strings.TrimSuffix(c.BaseURL, "/")
+	}
+
+	return healthAPI
 }
 
 func snippet(body []byte) string {
