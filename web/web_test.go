@@ -19,7 +19,7 @@ import (
 func TestStatusReportsTheStore(t *testing.T) {
 	t.Parallel()
 
-	server := newServer(t, "", nil)
+	server := newServer(t)
 
 	recorder := get(server, "/api/status")
 	require.Equal(t, http.StatusOK, recorder.Code)
@@ -35,7 +35,8 @@ func TestSyncStartsTheTrigger(t *testing.T) {
 	t.Parallel()
 
 	var calls atomic.Int32
-	server := newServer(t, "", func() { calls.Add(1) })
+	server := newServer(t)
+	server.Trigger = func() { calls.Add(1) }
 
 	recorder := post(server, "/api/sync")
 	require.Equal(t, http.StatusAccepted, recorder.Code)
@@ -45,7 +46,7 @@ func TestSyncStartsTheTrigger(t *testing.T) {
 func TestDisconnectRejectsUnknownProvider(t *testing.T) {
 	t.Parallel()
 
-	server := newServer(t, "", nil)
+	server := newServer(t)
 
 	recorder := post(server, "/api/disconnect/garmin")
 	require.Equal(t, http.StatusOK, recorder.Code)
@@ -54,25 +55,10 @@ func TestDisconnectRejectsUnknownProvider(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 }
 
-func TestPasswordGuardsEverything(t *testing.T) {
-	t.Parallel()
-
-	server := newServer(t, "secret", nil)
-
-	anonymous := get(server, "/api/status")
-	require.Equal(t, http.StatusUnauthorized, anonymous.Code)
-
-	request := httptest.NewRequest(http.MethodGet, "/api/status", http.NoBody)
-	request.SetBasicAuth("me", "secret")
-	allowed := httptest.NewRecorder()
-	server.ServeHTTP(allowed, request)
-	require.Equal(t, http.StatusOK, allowed.Code)
-}
-
 func TestPageServesTheBuild(t *testing.T) {
 	t.Parallel()
 
-	server := newServer(t, "", nil)
+	server := newServer(t)
 
 	if _, err := fs.ReadFile(server.assets, "index.html"); err != nil {
 		t.Skip("run task build:fe to test spa serving")
@@ -87,17 +73,13 @@ func TestPageServesTheBuild(t *testing.T) {
 	require.Contains(t, unknown.Body.String(), "<div id=\"root\">")
 }
 
-func newServer(t *testing.T, password string, trigger func()) *Server {
+func newServer(t *testing.T) *Server {
 	t.Helper()
 
 	store, err := state.Open(filepath.Join(t.TempDir(), "state.json"))
 	require.NoError(t, err)
 
-	if trigger == nil {
-		trigger = func() {}
-	}
-
-	server, err := New(store, &google.Client{}, trigger, password)
+	server, err := New(store, &google.Client{}, func() {})
 	require.NoError(t, err)
 
 	return server

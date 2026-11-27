@@ -10,7 +10,7 @@ Server that copies Google Health exercises into Garmin Connect, served with a sm
 - `garmin/` — Garmin Connect: SSO form login (with MFA), ticket exchange, TCX upload
 - `syncer/` — the run itself: ledger, per-exercise isolation, 401 retry
 - `state/` — one JSON file: tokens, upload ledger, log (`0600`, dir `0700`)
-- `web/` — strict API handlers, static serving of the React build, basic auth when `UI_PASSWORD` is set
+- `web/` — strict API handlers and static serving of the React build; no auth, run behind a proxy on loopback
 - `frontend/` — Vite+ (React, Tailwind, shadcn), built to `dist/` and embedded with `go:embed`; bun, not npm
 - `worker/` — interval loop
 

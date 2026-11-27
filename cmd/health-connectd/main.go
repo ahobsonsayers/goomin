@@ -95,7 +95,6 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 		application.store,
 		application.google,
 		trigger,
-		os.Getenv("UI_PASSWORD"),
 	)
 	if err != nil {
 		return fmt.Errorf("build web server: %w", err)

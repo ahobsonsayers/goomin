@@ -31,9 +31,10 @@ Click **Connect Google**, then **Connect Garmin**. Sync runs every 12 hours, onc
 | `--public-url` | `http://127.0.0.1:8080` | URL the browser uses |
 | `--interval` | `12h` | sync period |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | — | from `.env` |
-| `UI_PASSWORD` | — | basic auth for the page; set it on any public host |
 
 The Google client is a **Web application** client with redirect URI `<public-url>/api/auth/google/callback`.
+
+There is no built-in password: the page has no auth, so put an OAuth proxy (or your own basic-auth reverse proxy) in front and only expose the port on loopback. `docker-compose.yml` publishes `127.0.0.1:8080:8080` for that reason.
 
 ## Commands
 

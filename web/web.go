@@ -31,10 +31,9 @@ const (
 
 // Server holds the API state and the one in-flight Garmin login.
 type Server struct {
-	Store    *state.Store
-	Google   *google.Client
-	Trigger  func()
-	Password string
+	Store   *state.Store
+	Google  *google.Client
+	Trigger func()
 
 	router chi.Router
 	assets fs.FS
@@ -44,18 +43,17 @@ type Server struct {
 }
 
 // New builds the router: JSON under /api, the React build everywhere else.
-func New(store *state.Store, googleClient *google.Client, trigger func(), password string) (*Server, error) {
+func New(store *state.Store, googleClient *google.Client, trigger func()) (*Server, error) {
 	assets, err := frontend.FS()
 	if err != nil {
 		return nil, fmt.Errorf("read frontend build: %w", err)
 	}
 
 	server := &Server{
-		Store:    store,
-		Google:   googleClient,
-		Trigger:  trigger,
-		Password: password,
-		assets:   assets,
+		Store:   store,
+		Google:  googleClient,
+		Trigger: trigger,
+		assets:  assets,
 	}
 
 	router := chi.NewRouter()
@@ -70,16 +68,6 @@ func New(store *state.Store, googleClient *google.Client, trigger func(), passwo
 
 // ServeHTTP applies basic auth, then the routes.
 func (s *Server) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	if s.Password != "" {
-		user, password, ok := request.BasicAuth()
-		if !ok || user != "me" || password != s.Password {
-			writer.Header().Set("WWW-Authenticate", `Basic realm="health-connect"`)
-			http.Error(writer, "password required", http.StatusUnauthorized)
-
-			return
-		}
-	}
-
 	s.router.ServeHTTP(writer, request)
 }
 
