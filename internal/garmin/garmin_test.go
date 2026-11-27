@@ -152,3 +152,23 @@ func TestTokenFromResponse(t *testing.T) {
 	_, err = tokenFromResponse([]byte(`not json`))
 	require.Error(t, err)
 }
+
+func TestStepsTCX(t *testing.T) {
+	t.Parallel()
+
+	tcx := string(stepsTCX("2026-11-26", 1543))
+	require.Contains(t, tcx, `Sport="Other"`)
+	require.Contains(t, tcx, "1543 steps by goomin")
+	require.Contains(t, tcx, "2026-11-26T00:00:00Z")
+}
+
+func TestInternalID(t *testing.T) {
+	t.Parallel()
+
+	id, found := internalID([]byte(`{"detailedImportResult":{"successes":[{"internalId":123}]}}`))
+	require.True(t, found)
+	require.Equal(t, "123", id)
+
+	_, found = internalID([]byte(`{"detailedImportResult":{"failures":[{"messages":"Duplicate activity"}]}}`))
+	require.False(t, found)
+}

@@ -24,6 +24,7 @@ const (
 	tokenEndpoint    = "https://diauth.garmin.com/di-oauth2-service/oauth/token"
 	uploadEndpoint   = "https://connectapi.garmin.com/upload-service/upload/.tcx"
 	settingsEndpoint = "https://connectapi.garmin.com/userprofile-service/userprofile/user-settings"
+	activityEndpoint = "https://connectapi.garmin.com/activity-service/activity"
 
 	mobileClientID = "GARMIN_CONNECT_MOBILE_ANDROID_DI"
 	mobileAgent    = "GCM-Android-5.23"
@@ -219,25 +220,69 @@ var ErrNotSignedIn = errors.New("garmin: sign-in has expired")
 
 // Upload sends one TCX and returns a one-line status for the log.
 func Upload(ctx context.Context, accessToken string, tcx []byte, exerciseID string) (string, error) {
+	status, body, err := uploadFile(ctx, accessToken, tcx, exerciseID+".tcx")
+	if err != nil {
+		return "", err
+	}
+
+	return UploadStatus(status, body), nil
+}
+
+// UploadSteps imports one day's step count as an Other activity, then names it
+// after the count — Garmin discards step fields embedded in activity files.
+// Days sync at most once: the syncer records "steps-<date>" when UploadStatus
+// reports the import succeeded.
+func UploadSteps(ctx context.Context, accessToken, date string, steps int) (string, error) {
+	status, body, err := uploadFile(ctx, accessToken, stepsTCX(date, steps), "steps-"+date+".tcx")
+	if err != nil {
+		return "", err
+	}
+
+	statusText := UploadStatus(status, body)
+	if statusText != StatusUploaded {
+		return statusText, nil
+	}
+
+	activityID, found := internalID(body)
+	if !found {
+		return statusText, nil
+	}
+
+	name := fmt.Sprintf("Walk · %d steps · %s", steps, date)
+
+	err = renameActivity(ctx, accessToken, activityID, name)
+	if err != nil {
+		return "", fmt.Errorf("rename garmin steps activity: %w", err)
+	}
+
+	return statusText, nil
+}
+
+func uploadFile(
+	ctx context.Context,
+	accessToken string,
+	content []byte,
+	filename string,
+) (statusCode int, responseBody []byte, err error) {
 	var payload bytes.Buffer
 
 	writer := multipart.NewWriter(&payload)
 
-	part, err := writer.CreateFormFile("file", exerciseID+".tcx")
+	part, err := writer.CreateFormFile("file", filename)
 	if err != nil {
-		return "", fmt.Errorf("create garmin upload form: %w", err)
+		return 0, nil, fmt.Errorf("create garmin upload form: %w", err)
 	}
 
-	rewritten := RewriteSport(tcx)
+	rewritten := RewriteSport(content)
 
 	_, err = part.Write(rewritten)
 	if err != nil {
-		return "", fmt.Errorf("write garmin upload form: %w", err)
+		return 0, nil, fmt.Errorf("write garmin upload form: %w", err)
 	}
 
 	err = writer.Close()
 	if err != nil {
-		return "", fmt.Errorf("close garmin upload form: %w", err)
+		return 0, nil, fmt.Errorf("close garmin upload form: %w", err)
 	}
 
 	request, err := http.NewRequestWithContext(
@@ -247,7 +292,7 @@ func Upload(ctx context.Context, accessToken string, tcx []byte, exerciseID stri
 		&payload,
 	)
 	if err != nil {
-		return "", fmt.Errorf("build garmin upload request: %w", err)
+		return 0, nil, fmt.Errorf("build garmin upload request: %w", err)
 	}
 
 	request.Header.Set("Content-Type", writer.FormDataContentType())
@@ -257,16 +302,83 @@ func Upload(ctx context.Context, accessToken string, tcx []byte, exerciseID stri
 
 	response, err := defaultClient().Do(request)
 	if err != nil {
-		return "", fmt.Errorf("garmin upload: %w", err)
+		return 0, nil, fmt.Errorf("garmin upload: %w", err)
 	}
 	defer response.Body.Close()
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
-		return "", fmt.Errorf("read garmin upload response: %w", err)
+		return 0, nil, fmt.Errorf("read garmin upload response: %w", err)
 	}
 
-	return UploadStatus(response.StatusCode, body), nil
+	return response.StatusCode, body, nil
+}
+
+// stepsTCX builds the smallest TCX file the importer accepts for a day's steps.
+func stepsTCX(date string, steps int) []byte {
+	start := date + "T00:00:00Z"
+
+	return []byte(fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2">
+  <Activities>
+    <Activity Sport="Other">
+      <Id>%s</Id>
+      <Notes>%d steps by goomin</Notes>
+      <Lap StartTime="%s">
+        <TotalTimeSeconds>60</TotalTimeSeconds>
+        <DistanceMeters>0.0</DistanceMeters>
+        <Calories>0</Calories>
+        <Intensity>Active</Intensity>
+        <TriggerMethod>Manual</TriggerMethod>
+      </Lap>
+    </Activity>
+  </Activities>
+  <Author>
+    <Name>goomin</Name>
+  </Author>
+</TrainingCenterDatabase>
+`, start, steps, start))
+}
+
+func internalID(body []byte) (string, bool) {
+	var decoded importResult
+
+	err := json.Unmarshal(body, &decoded)
+	if err != nil {
+		return "", false
+	}
+
+	for _, success := range decoded.Result.Successes {
+		return fmt.Sprint(success.ID), true
+	}
+
+	return "", false
+}
+
+func renameActivity(ctx context.Context, accessToken, activityID, name string) error {
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPut,
+		activityEndpoint+"/"+activityID,
+		strings.NewReader(`{"activityName":"`+name+`"}`),
+	)
+	if err != nil {
+		return fmt.Errorf("build garmin rename request: %w", err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer "+accessToken)
+
+	response, err := defaultClient().Do(request)
+	if err != nil {
+		return fmt.Errorf("garmin rename: %w", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode >= http.StatusBadRequest {
+		return fmt.Errorf("garmin rename returned %d", response.StatusCode)
+	}
+
+	return nil
 }
 
 // RewriteSport forces the sport Garmin accepts; Google exports walking and swimming.
@@ -325,8 +437,13 @@ func parseOutcome(body []byte) Outcome {
 	return Outcome{}
 }
 
+type importSuccess struct {
+	ID any `json:"internalId"`
+}
+
 type importFailures struct {
-	Failures []map[string]any `json:"failures"`
+	Failures  []map[string]any `json:"failures"`
+	Successes []importSuccess  `json:"successes"`
 }
 
 type importResult struct {
