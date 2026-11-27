@@ -74,10 +74,6 @@ func serve(ctx context.Context, cmd *cli.Command) error {
 	defer stop()
 
 	scheduled := func() {
-		if !due(application.store, application.config.Interval) {
-			return
-		}
-
 		runErr := application.sync.Run(ctx)
 		if runErr != nil {
 			slog.Error("scheduled sync failed", "error", runErr)
@@ -166,12 +162,6 @@ func newApp(cfg config) (*app, error) {
 	}
 
 	return &app{config: cfg, store: store, google: client, sync: syncRun}, nil
-}
-
-func due(store *state.Store, interval time.Duration) bool {
-	last := store.View().LastSync
-
-	return last.IsZero() || time.Since(last) > interval
 }
 
 type garminUploader struct{}
