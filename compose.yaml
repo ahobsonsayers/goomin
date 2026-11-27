@@ -1,7 +1,7 @@
 services:
-  health-connectd:
-    container_name: health-connectd
-    image: arranhs/health-connectd:latest
+  goomin:
+    container_name: goomin
+    image: arranhs/goomin:latest
     build: .
     restart: unless-stopped
     ports:
